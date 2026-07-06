@@ -182,6 +182,46 @@ Keep it scannable — the CEO reads this in a week-planning session. No more tha
 a concrete move, and states what's at risk. The Dormant section holds a separate
 2-3 people (no overlap with the focus picks).
 
+### Step 4 — Handling follow-up questions and revision requests
+
+The brief is not the end of the conversation. The operator or CEO may push back,
+ask why someone was or wasn't included, or ask for a change. The same rules from
+Steps 2-3 still apply — never relax the grounding rule just because the ask came
+after the brief was already produced.
+
+**"Why is/isn't X in the brief?"** — Re-derive the answer from the already-loaded
+roster and `signals`, never from memory or a plausible-sounding guess. Answer in
+this structured form:
+
+```
+**<Name>** — <included / not included>
+- **Goal fit:** <which goal(s) they match, per `signals.goal_match_labels`, or
+  "none" if empty>
+- **Signals:** <strength, recency_bucket/days_since_contact, and any flags like
+  dormant_but_strong / goal_aligned_but_weak / dormant_candidate>
+- **Evidence:** <the actual last_contact_summary / notes line, or "none on file"
+  if thin>
+- **Why this led to the decision:** <how the above did or didn't clear the bar in
+  Step 2's rubric — e.g. outranked by a stronger-leverage pick, or excluded because
+  there's no goal alignment / no real evidence to cite>
+```
+
+If the person **isn't in the roster at all**, say so plainly — do not invent a row
+for them. If the roster may be out of date (the operator says they updated the
+spreadsheet), re-run `node scripts/load_roster.js` rather than trusting stale
+context from earlier in the conversation.
+
+**"Swap in X instead of Y" / "add X"** — Before adding anyone, run them through the
+same grounding rule as the original brief: find their actual row and signals, and
+only add them if you can cite real evidence for the goal they'd serve. If they have
+no goal alignment or no usable evidence, say so and explain why they don't clear the
+bar, using the structured form above, instead of adding them anyway to be agreeable.
+
+**"That reasoning seems off" / disputes a pick** — Re-check the specific row and
+signals for that person and either (a) show the evidence again and stand by the
+pick, or (b) if the pushback reveals the evidence was misread, correct the brief and
+say what changed. Never defend a pick you can't currently point to real data for.
+
 ## Failure modes (handle explicitly — never fake a result)
 
 The loader surfaces these. You must reflect them in the brief, never hide them.
