@@ -17,3 +17,7 @@ Follow the skill's workflow exactly (see `SKILL.md` for full detail):
    "Dormant relationships" section (2-3 people), and any data-quality flags
    (missing goal contacts, stale/thin data, ambiguous matches, unresolved verify
    issues) in **Data notes**.
+5. Also save the brief as a dated `.md` file under `~/Documents/network-focus-briefs/`
+   and tell the operator where it went. The saved file is a snapshot only — keep
+   answering any follow-up questions from the live data in this conversation, not
+   by re-reading the file.

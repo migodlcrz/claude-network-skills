@@ -38,8 +38,16 @@ week-planning session.
    ```
    > Tip: `~/` means your home folder. Don't write `~/Users/yourname/…` — that
    > doubles it. Just `~/Documents/…`.
+6. *(Optional)* By default, each brief is also saved as a file in
+   `~/Documents/network-focus-briefs/`. To save it somewhere else instead, add a
+   second line:
+   ```json
+   { "rosterPath": "~/Documents/network-roster.csv",
+     "briefOutputDir": "~/Dropbox/CEO Briefs" }
+   ```
 
-That's the whole setup. You won't touch it again unless the spreadsheet moves.
+That's the whole setup. You won't touch it again unless the spreadsheet or your
+preferred save location moves.
 
 ---
 
@@ -47,7 +55,15 @@ That's the whole setup. You won't touch it again unless the spreadsheet moves.
 
 1. Open **Claude Code**.
 2. Type: `/network-brief`
-3. Read the brief it produces and copy it into the CEO's week-planning doc.
+3. Read the brief it produces. It's also saved as a file (named with that week's
+   date) in `~/Documents/network-focus-briefs/` by default, or wherever you set
+   `briefOutputDir` in Part 1 — open it directly, or attach it if you want to send
+   it instead of copy-pasting.
+4. Copy it into the CEO's week-planning doc, or just hand her the saved file.
+
+You can still ask follow-up questions in the same Claude Code conversation
+afterward (see Part 3) — the saved file is just a copy for your records, you don't
+need to reopen it to ask something.
 
 ---
 

@@ -119,6 +119,31 @@ function resolveRosterPath() {
   );
 }
 
+// Where the operator wants saved brief copies. Optional — unlike the roster path,
+// missing this is not a failure: fall back to a sane default instead.
+const DEFAULT_BRIEF_OUTPUT_DIR = "~/Documents/network-focus-briefs";
+
+function resolveBriefOutputDir() {
+  const env = process.env.NETWORK_BRIEF_OUTPUT_DIR;
+  if (env) return { dir: expandHome(env), source: "NETWORK_BRIEF_OUTPUT_DIR env var" };
+  const settingsPath = findSettingsPath();
+  if (settingsPath) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+      if (settings.briefOutputDir) {
+        return {
+          dir: expandHome(settings.briefOutputDir),
+          source: `briefOutputDir in ${settingsPath}`,
+        };
+      }
+    } catch (e) {
+      // Settings file JSON errors are already surfaced by resolveRosterPath's own
+      // read; don't fail a second time here for an optional setting.
+    }
+  }
+  return { dir: expandHome(DEFAULT_BRIEF_OUTPUT_DIR), source: "default" };
+}
+
 // ---- CSV parsing (RFC-4180-ish: quotes, embedded commas/newlines) -------------
 
 function parseCSV(text) {
@@ -593,11 +618,13 @@ function main() {
   for (const c of roster) c.signals = computeSignals(c, now);
   const goalContacts = loadGoalContacts();
   const quality = buildQualityReport(roster, colmap, goalContacts);
+  const { dir: briefOutputDir } = resolveBriefOutputDir();
   process.stdout.write(
     JSON.stringify({
       ok: true,
       source,
       roster_path: p,
+      brief_output_dir: briefOutputDir,
       roster,
       quality,
     }),

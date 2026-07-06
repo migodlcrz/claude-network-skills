@@ -66,12 +66,15 @@ instead of a blank page.
    Last contact summary, Relationship strength (1-5), Tags, Notes`.
 2. **Goals** — `reference/goals.md`, the three quarterly goals plus a `goal_contacts`
    list of people/firms named in the goals (used for the missing-contact check).
-3. **Config** — `~/.claude/network-focus.settings.json` with `rosterPath`.
+3. **Config** — `~/.claude/network-focus.settings.json` with `rosterPath` (required)
+   and `briefOutputDir` (optional, defaults to `~/Documents/network-focus-briefs`;
+   overridable per-run via `NETWORK_BRIEF_OUTPUT_DIR`).
 
 ### Loader output (deterministic → the LLM's only view of the data)
 ```jsonc
 {
   "ok": true,
+  "brief_output_dir": "/Users/.../network-focus-briefs",  // resolved, ready to use
   "roster": [{
     "name","role","company","relationship","last_contact_date",
     "last_contact_channel","last_contact_summary","strength","tags","notes",

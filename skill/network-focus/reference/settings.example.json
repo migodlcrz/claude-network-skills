@@ -1,3 +1,4 @@
 {
-  "rosterPath": "~/Documents/terragrid-network-roster.csv"
+  "rosterPath": "~/Documents/terragrid-network-roster.csv",
+  "briefOutputDir": "~/Documents/network-focus-briefs"
 }

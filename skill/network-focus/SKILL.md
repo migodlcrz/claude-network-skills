@@ -68,6 +68,7 @@ It prints a single JSON object to stdout with this shape:
 ```json
 {
   "ok": true,
+  "brief_output_dir": "/Users/.../Documents/network-focus-briefs",
   "roster": [
     {
       "name": "...", "role": "...", "company": "...", "relationship": "...",
@@ -109,6 +110,11 @@ of re-deriving them from raw text. They are *inputs to your judgment*, not a ran
 - `dormant_candidate` — 60+ days since contact AND still goal-aligned (any strength):
   the pool for the **Dormant relationships** section of the brief.
 
+**`brief_output_dir`** — where to save the brief file in Step 5. Resolved by the
+loader from (in order) the `NETWORK_BRIEF_OUTPUT_DIR` env var, `briefOutputDir` in
+the operator's settings, or a default of `~/Documents/network-focus-briefs`. Always
+use this value as given — never hardcode a path yourself.
+
 If the top-level `"ok"` is `false`, STOP the normal flow and handle it per
 **Failure modes** below. Do not fabricate a brief from missing data.
 
@@ -119,10 +125,21 @@ report, decide **who and why**. This is the one genuine judgment call in the
 pipeline — the loader already did objective feature extraction; this step is
 holistic weighing that a keyword scan can't do.
 
-Work in two sub-steps so the reasoning is sound and auditable:
+Work in three sub-steps so the reasoning is sound, auditable, and fast:
 
-**2a. Shortlist against a rubric (consider ALL contacts first — don't jump to 5).**
-For each goal-aligned contact, weigh:
+**2a. Pre-filter using `signals` (cheap, mechanical — do this first).** Narrow the
+roster to a **candidate pool**: every contact with a non-empty `goal_matches` OR
+`dormant_candidate: true`. This is a plain filter on fields the loader already
+computed, not a judgment call — do not spend reasoning effort re-evaluating
+contacts with no goal match and no dormant flag; they cannot win a focus or dormant
+slot, so exclude them from the pool without weighing them individually. If the pool
+looks suspiciously small (fewer than ~5) relative to `quality.total_contacts`,
+double-check a few excluded contacts' `tags`/`notes` in case the keyword scan missed
+something real — but this is a spot-check, not a full re-scan.
+
+**2b. Shortlist the candidate pool against a rubric** (this is where your judgment
+goes — only the pool from 2a, not the full roster). For each contact in the pool,
+weigh:
 - **Goal alignment** — reaching out plausibly advances one of the three goals this
   week. Use `signals.goal_match_labels` as a starting point, but apply your own
   judgment (the keyword scan can miss or over-match).
@@ -136,7 +153,7 @@ For each goal-aligned contact, weigh:
   reason. A `dormant`/`aging` warm relationship is often a better use of a week than
   someone contacted yesterday.
 
-**2b. Select 3-5 for "focus" and 2-3 for "dormant"** (from contacts flagged
+**2c. Select 3-5 for "focus" and 2-3 for "dormant"** (from contacts flagged
 `signals.dormant_candidate`, no overlap with focus picks). Aim to serve all three
 goals across the focus picks rather than five of one, unless the data clearly
 justifies a skew.
@@ -188,6 +205,23 @@ template.
 ### Step 5 — Emit
 
 Post the Write stage's markdown output to the chat, unmodified. That is the brief.
+
+Then also save it to a file so the operator has something to open, share, or attach
+without retyping it: write the same markdown, unmodified, to
+`<brief_output_dir>/YYYY-MM-DD-network-focus.md`, using the loader's
+`brief_output_dir` value (never hardcode the folder) and Monday's date for that
+week. Create the folder if it doesn't exist. After saving, tell the operator in
+plain language where it went, e.g.:
+> Saved a copy to `~/Documents/network-focus-briefs/2026-07-06-network-focus.md` —
+> open it anytime, or attach it directly if you want to send it to her.
+
+If the operator has set a custom `briefOutputDir` in settings, the path will
+reflect that instead of the default.
+
+This saved file is a **snapshot** of this run — it is not re-read or re-opened by
+this skill later. If the operator asks a follow-up question afterward (Step 6),
+answer from the live roster/signals/picks already in this conversation, the same
+as if no file had been saved. The file is for her convenience, not a data source.
 
 ### Step 6 — Handling follow-up questions and revision requests
 
