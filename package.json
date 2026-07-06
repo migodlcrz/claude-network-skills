@@ -1,0 +1,17 @@
+{
+  "name": "network-focus-skill",
+  "version": "1.0.0",
+  "description": "Claude Code skill that produces a weekly Network Focus brief from a network roster and the CEO's goals.",
+  "bin": {
+    "network-focus-skill": "bin/cli.js"
+  },
+  "type": "commonjs",
+  "files": [
+    "bin/",
+    "skill/"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT"
+}
