@@ -5,6 +5,15 @@ contacts). Every claim is grounded in a real spreadsheet row.*
 
 **Goals this quarter:** Series C · CTO hire · AI-safety relationships
 
+## Executive summary
+This week leans CTO-hire and Series C, with one concrete AI-safety opening. The most
+time-sensitive item is **Maya Patel** — the "revisit in a month" window she set
+herself opened weeks ago and is closing the longer it's ignored. Longer-term, **Reid
+Hoffman** (Greylock) is her strongest investor tie and has gone quiet for four
+months — worth reviving before the raise heats up. The Dormant section below adds
+three more goal-aligned relationships (CTO, AI-safety, Series C) that are cooling
+but not yet urgent.
+
 ---
 
 ## This week's focus (5 people)

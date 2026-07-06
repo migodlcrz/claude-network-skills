@@ -91,6 +91,11 @@ here's how to fix it"), never stack traces.
 Run `/network-brief` on the provided 25-contact roster. Real output (full copy in
 `docs/BRIEF.md`), abridged here:
 
+> **Executive summary:** This week leans CTO-hire and Series C, with one concrete
+> AI-safety opening. Most time-sensitive: Maya Patel's self-set "revisit" window
+> opened weeks ago and is closing. Reid Hoffman (Greylock) is her strongest investor
+> tie, gone quiet 4 months — worth reviving before the raise heats up.
+>
 > **This week's focus (5)**
 > 1. **Diana Chen — CTO, Stripe** · CTO hire · *offered to help with the search,
 >    knows 3-4 candidates, never followed up* · Move: reply, ask for intros · Risk:

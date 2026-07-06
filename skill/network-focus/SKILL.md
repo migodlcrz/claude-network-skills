@@ -145,6 +145,18 @@ Output the brief as markdown to the chat. Every pick uses this structure, and th
 
 **Goals this quarter:** Series C · CTO hire · AI-safety relationships
 
+## Executive summary
+2-3 sentences, written LAST (after Steps 3a/3b below are drafted) so it only rolls
+up claims that are already grounded — never introduce a new fact here that isn't
+backed by a pick's Evidence line further down. Cover:
+1. The overall theme/skew of this week (e.g. "mostly CTO-hire momentum, one
+   Series C reconnect, one AI-safety open door").
+2. The single most time-sensitive item and why (a closing window, a long-dormant
+   strong tie, an ask already on the table).
+3. One-line pointer to the Dormant section if it surfaces something notable.
+Keep it scannable — this is what she reads first, in the 10 seconds before she
+reads the detail below.
+
 ## This week's focus (N people)
 
 ### 1. <Name> — <Role>, <Company>
@@ -180,7 +192,8 @@ Also note any deliberate skew across goals and a strong runner-up if useful.>
 Keep it scannable — the CEO reads this in a week-planning session. No more than
 5 picks in "This week's focus." Every pick names a goal, cites real evidence, gives
 a concrete move, and states what's at risk. The Dormant section holds a separate
-2-3 people (no overlap with the focus picks).
+2-3 people (no overlap with the focus picks). The Executive summary is written last
+and only summarizes claims already grounded below it.
 
 ### Step 4 — Handling follow-up questions and revision requests
 
