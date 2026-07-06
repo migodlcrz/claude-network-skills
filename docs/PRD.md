@@ -45,7 +45,8 @@ instead of a blank page.
   install itself).
 - A `/network-brief` slash command as the friendly trigger.
 - Deterministic load + validation of a **local** CSV/XLSX roster.
-- A single Claude reasoning pass that ranks 3-5 contacts and explains why.
+- A three-stage reasoning pipeline (Select → Verify → Write, the latter two as
+  sub-agents) that ranks 3-5 focus contacts + 2-3 dormant contacts and explains why.
 - Markdown brief output.
 - Explicit handling of ≥2 failure modes.
 
@@ -119,36 +120,67 @@ This makes the brief trustworthy *and* debuggable: when something looks wrong, i
 either bad data (the loader logs it) or bad judgment (one prompt to inspect) — never
 an ambiguous mix.
 
-### 5.2 Why one reasoning pass, not multiple agents
-The prioritization — matching contacts to goals, weighing strength against
-staleness, justifying each pick — is a single coherent judgment. Splitting it across
-sequential agents adds handoff risk and debugging surface for no benefit. One pass
-keeps the reasoning legible: clean facts in, ranked brief out. (An earlier idea of
-"agent 1 parses, agent 2 writes" was rejected: agent-parsing reintroduces exactly
-the hallucination risk the trust boundary exists to remove.)
+### 5.2 Single agent vs. sub-agents — where we drew the line
+We evaluated this twice, at two different seams, and answered differently each time:
+
+**Parsing the spreadsheet: no agent.** An earlier idea — "agent 1 parses, agent 2
+writes" — was rejected. A parsing agent can misread a date or blur two
+similarly-named contacts, and because it's a model call, you might never notice.
+That reintroduces exactly the hallucination risk §5.1's trust boundary exists to
+remove. Parsing stays deterministic code, full stop.
+
+**Selecting who matters this week: no additional agent.** Ranking contacts against
+three goals — weighing strength, recency, and timing together — is one coherent
+judgment call, not a set of independently-decomposable sub-tasks. Splitting the
+*selection* itself across agents would just add a handoff with no new capability.
+
+**Checking the selection, and writing it up: yes, two sub-agents.** These are
+genuinely different jobs from selection and from each other:
+- **`verify-brief`** — an *adversarial* check, deliberately not the same agent
+  (or reasoning thread) that made the picks. Given only the picks and the raw
+  data, it tries to find ungrounded citations, goal imbalance, or eligibility
+  errors. A self-check by the same reasoning that produced the picks is weaker
+  than an independent one — it's prone to rationalizing its own output.
+- **`write-brief`** — a rendering job, constrained to only the already-verified
+  facts. Separating "decide" from "phrase persuasively" means a citation can't
+  quietly get more confident or more specific in the prose than the underlying
+  evidence supports.
+
+Each of these three stages (Select, Verify, Write) has a narrow, checkable job.
+That's the bar for "appropriate" sub-agent use, not agent-count for its own sake.
 
 ### 5.3 Flow
 ```
-npx github:…/claude-network-skills install   (one-time: copy skill into ~/.claude)
+npx github:…/claude-network-skills install   (one-time: copy skill + 2 sub-agents into ~/.claude)
 /network-brief
-   └─> node scripts/load_roster.js           (deterministic: parse + validate + PRE-SCORE)
-          └─> {ok, roster[+signals], quality{}}   (clean JSON to Claude)
-                 └─> Claude: one reasoning pass over goals + roster + quality
-                        └─> Markdown brief (focus + dormant + data notes)
+   └─> node scripts/load_roster.js              (deterministic: parse + validate + PRE-SCORE)
+          └─> {ok, roster[+signals], quality{}}  (clean JSON to Claude)
+                 └─> SELECT (main thread): who + why → structured JSON picks, no prose
+                        └─> VERIFY (sub-agent `verify-brief`): independent grounding
+                            + goal-balance check → {verified, issues[], goal_coverage}
+                               └─> WRITE (sub-agent `write-brief`): renders verified
+                                   picks into markdown, adds no new facts
+                                      └─> Brief (executive summary + focus + dormant
+                                          + data notes), emitted unmodified
 ```
 
-### 5.4 Reliability: pre-scoring + grounding
-Two design choices make the reasoning more consistent and less prone to fabrication,
-without adding agents:
+### 5.4 Reliability: pre-scoring + grounding + independent verification
+Three design choices compound to make the brief more consistent and less prone to
+fabrication:
 
 1. **Deterministic pre-scoring.** The loader computes objective `signals` per contact
    (goal matches via word-boundary keyword scan, recency bucket, dormant/weak flags).
-   The LLM reasons over these *structured features* instead of re-deriving them from
+   Select reasons over these *structured features* instead of re-deriving them from
    raw text each run — so picks are stable week to week and less hallucination-prone.
 2. **Grounding rule.** Every pick must cite specific evidence that exists in that
-   contact's row (a real summary/notes line, strength, or date). If the model can't
+   contact's row (a real summary/notes line, strength, or date). If Select can't
    point to a concrete field, it can't make the claim. This is the primary
    anti-hallucination lever and it keeps every recommendation traceable to a row.
+3. **Independent verification.** `verify-brief` re-checks every citation and the
+   goal balance from a fresh context — it did not make the picks, so it isn't
+   defending its own reasoning. This catches the failure mode grounding alone
+   can't: a citation that's *technically* present but doesn't really support the
+   claim, or a goal that quietly got zero coverage.
 
 ### 5.5 Scoring guidance (judgment, not a rigid formula)
 Goal alignment is the gate; then leverage over comfort; timing/openings; balance
@@ -158,22 +190,25 @@ inaction; the dormant section holds 2-3 separate 60+-day goal-aligned reconnects
 Full guidance lives in `SKILL.md` so it is versioned with the skill.
 
 ### 5.6 Model choice
-**Reasoning pass: Claude Opus** (`opus`). The brief is the entire product surface —
-one judgment call per week that the CEO plans around — so quality dominates cost.
-Opus's stronger multi-constraint reasoning (balancing three goals × strength ×
-recency × leverage, then justifying each pick) is worth it for a low-frequency,
-high-stakes, low-token task (~25 rows, run weekly). A cheaper model would save
-fractions of a cent while risking weaker prioritization on the one output that
-matters. **The loader uses no model at all** — it's deterministic code — so the only
-model spend is the single reasoning pass.
+**All three reasoning stages (Select, Verify, Write) run on Claude Opus** (`opus`,
+via `model: inherit` in each sub-agent so they match the main session). The brief
+is the entire product surface — a judgment call per week that the CEO plans around
+— so quality dominates cost at this volume (~25 rows, three model calls, run
+weekly). Verify in particular benefits from Opus-level reasoning: it has to
+independently re-derive whether a citation truly supports a claim, not just
+pattern-match text. **The loader uses no model at all** — it's deterministic code.
 
 ### 5.7 Claude Code primitives used
 - **Skills packaging** — the deliverable is a proper `SKILL.md` skill (name,
   description, workflow, versioned scoring guidance), installable into `~/.claude`.
 - **Slash command** — `/network-brief` is the non-technical trigger.
 - **Structured input + deterministic scripting** — the loader is the trust boundary.
-- **Deliberately *not* sub-agents / MCP for v1** — see §5.2. The single-pass design
-  is a trust decision, not an oversight; production MCP sourcing is in §7.
+- **Sub-agents, used where the job genuinely decomposes** — `verify-brief` (adversarial
+  grounding/balance check) and `write-brief` (constrained rendering), each installed
+  as its own agent file and invoked as a distinct step after Select. See §5.2 for
+  where we did and didn't add a sub-agent, and why each line was drawn there.
+- **MCP** — not used in v1 (no live data sources to connect to); see §7 for where it
+  belongs in production.
 
 ## 6. Failure modes (≥2 required; we handle four)
 
@@ -236,6 +271,8 @@ deployment, the roster would be assembled and kept fresh from multiple sources:
 - Brief always names 3-5 focus people — each tied to a goal, with a concrete move and
   a stated risk of inaction — plus 2-3 dormant reconnect candidates.
 - Every pick is traceable to a real roster row (grounding rule); no invented details.
+- `verify-brief` returns `verified: true` (or its issues are visibly resolved/flagged
+  in Data notes) before the brief is written up — no unverified brief reaches the CEO.
 - All four failure modes produce a clear, actionable operator message — never a
   crash or a fabricated brief.
 - Picks are stable run-to-run on unchanged data (pre-scoring reduces variance).
@@ -245,3 +282,6 @@ deployment, the roster would be assembled and kept fresh from multiple sources:
 - Track week-over-week: who was recommended, who she actually contacted, outcomes.
 - Live MCP sources per the Data Sourcing Strategy.
 - Feedback loop: CEO marks picks helpful/not to tune scoring.
+- At 500+ contacts, add a deterministic shortlist stage in the loader (pre-filter to
+  goal-aligned/dormant candidates by score) before Select ever sees the roster —
+  keeps context small and avoids "lost in the middle" inconsistency at scale.

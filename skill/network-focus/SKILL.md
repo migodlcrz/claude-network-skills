@@ -36,6 +36,16 @@ truth for scoring and may be edited by the operator over time.
 Follow these steps in order. Do not skip the loader step — you must never read the
 spreadsheet yourself. The loader owns the data so the brief stays trustworthy.
 
+**Pipeline shape:** Load (deterministic) → **Select** (you, in this conversation)
+→ **Verify** (independent sub-agent) → **Write** (independent sub-agent) → emit.
+Select, Verify, and Write are three separate, narrower jobs on purpose: Select
+decides *who and why* (structured facts only, no prose), Verify is an adversarial
+second look that catches ungrounded or unbalanced picks before anyone reads them,
+and Write turns the verified facts into the polished brief without being allowed
+to introduce new claims of its own. Splitting them this way means each stage has a
+narrow, checkable job — instead of one pass trying to rank, self-check, and write
+well all at once.
+
 ### Step 1 — Load and validate the roster (deterministic, not you)
 
 Run the loader script. It reads the roster path from the operator's settings,
@@ -102,11 +112,12 @@ of re-deriving them from raw text. They are *inputs to your judgment*, not a ran
 If the top-level `"ok"` is `false`, STOP the normal flow and handle it per
 **Failure modes** below. Do not fabricate a brief from missing data.
 
-### Step 2 — Reason over the data (one pass — this is your job)
+### Step 2 — Select (you, in this conversation — structured output only)
 
-Using the loaded roster (including each contact's `signals`) and the quality report,
-produce the brief. This single reasoning pass is the intelligence of the skill. The
-loader has already done the objective feature extraction; your job is judgment.
+Using the loaded roster (including each contact's `signals`) and the quality
+report, decide **who and why**. This is the one genuine judgment call in the
+pipeline — the loader already did objective feature extraction; this step is
+holistic weighing that a keyword scan can't do.
 
 Work in two sub-steps so the reasoning is sound and auditable:
 
@@ -125,9 +136,10 @@ For each goal-aligned contact, weigh:
   reason. A `dormant`/`aging` warm relationship is often a better use of a week than
   someone contacted yesterday.
 
-**2b. Select the top 3-5** across the goals. Aim to serve all three goals rather
-than five of one — unless the data clearly justifies a skew, in which case say so
-explicitly in Data notes.
+**2b. Select 3-5 for "focus" and 2-3 for "dormant"** (from contacts flagged
+`signals.dormant_candidate`, no overlap with focus picks). Aim to serve all three
+goals across the focus picks rather than five of one, unless the data clearly
+justifies a skew.
 
 **Grounding rule (do not skip):** every pick must be justified by *specific evidence
 that exists in that contact's roster row* — quote or closely paraphrase a real
@@ -135,72 +147,56 @@ that exists in that contact's roster row* — quote or closely paraphrase a real
 concrete field that supports a claim, do not make the claim. Never invent a reason,
 a past interaction, or a detail that is not in the data.
 
-### Step 3 — Emit the brief (grounded markdown)
-
-Output the brief as markdown to the chat. Every pick uses this structure, and the
-**Evidence** line must cite real data from that contact's row:
-
+**Output of this step — structured JSON only, no prose brief yet:**
+```json
+{
+  "picks": [
+    { "section": "focus", "name": "...", "goal": "...",
+      "evidence_field": "last_contact_summary", "evidence_quote": "...",
+      "move": "...", "risk": "..." }
+  ],
+  "skew_note": "..."   // only if goals are deliberately unbalanced; else omit
+}
 ```
-# Network Focus — Week of <Monday's date>
+This is deliberately terse — no "why now" essay yet. Keeping this stage to bare
+facts is what makes it possible for Verify to check every claim mechanically.
 
-**Goals this quarter:** Series C · CTO hire · AI-safety relationships
+### Step 3 — Verify (independent sub-agent, `agents/verify-brief.md`)
 
-## Executive summary
-2-3 sentences, written LAST (after Steps 3a/3b below are drafted) so it only rolls
-up claims that are already grounded — never introduce a new fact here that isn't
-backed by a pick's Evidence line further down. Cover:
-1. The overall theme/skew of this week (e.g. "mostly CTO-hire momentum, one
-   Series C reconnect, one AI-safety open door").
-2. The single most time-sensitive item and why (a closing window, a long-dormant
-   strong tie, an ask already on the table).
-3. One-line pointer to the Dormant section if it surfaces something notable.
-Keep it scannable — this is what she reads first, in the 10 seconds before she
-reads the detail below.
+Pass the sub-agent: the Step 2 JSON, the full loader output (roster + signals +
+quality), and the three goals. It has no memory of *why* you picked anyone — it
+only sees the claims and the raw data, and tries to find problems: ungrounded
+citations, goal mismatches, duplicate picks across sections, dormant picks that
+aren't actually eligible, or goal imbalance. It returns
+`{ verified, issues[], goal_coverage }` — see the agent's own spec for the schema.
 
-## This week's focus (N people)
+**If `verified: false`:** do not silently discard the issues. For anything fixable
+(e.g. a citation that was slightly misquoted but a correct one exists in the same
+field), fix it and re-verify. For anything not fixable in this run, keep the flagged
+picks but make sure Write surfaces the issue in **Data notes** rather than
+presenting it as fully confirmed. Never suppress a Verify finding.
 
-### 1. <Name> — <Role>, <Company>
-- **Goal:** <which of the three goals>
-- **Evidence:** <a real quote/paraphrase from this row: strength, recency bucket or
-  date, and the specific line from summary/notes that supports the pick>
-- **Why now:** <1-2 sentences tying that evidence to why this week>
-- **Suggested move:** <concrete, specific next step — a coffee, a thoughtful email,
-  an intro request, a follow-up>
-- **What's at risk if she waits:** <the concrete cost of inaction — a window closing,
-  a warm relationship cooling, a competitor/other founder getting there first>
+### Step 4 — Write (independent sub-agent, `agents/write-brief.md`)
 
-... (repeat for each pick, 3-5 total)
+Pass the sub-agent: the (possibly corrected) Step 2 JSON, the Step 3 verify result,
+and the quality report. It renders the final markdown brief — executive summary,
+"This week's focus," "Dormant relationships," "Data notes" — using only facts
+already in that input. It does not re-open the roster and cannot add a claim that
+wasn't already in the Select output. See the agent's own spec for the exact output
+template.
 
-## Dormant relationships (reconnect candidates)
-Pick **2-3 people** from contacts flagged `signals.dormant_candidate` (60+ days
-since contact AND still goal-aligned) who remain high-leverage. These are not
-necessarily this week's top actions — they're relationships at risk of going cold
-that would be costly to lose. Do NOT repeat anyone already in "This week's focus."
+### Step 5 — Emit
 
-### <Name> — <Role>, <Company>
-- **Goal & leverage:** <which goal, and why they're still high-leverage>
-- **Evidence:** <real quote/paraphrase + days since contact from this row>
-- **Suggested move:** <a low-lift reconnect — a check-in note, a share, a quick call>
+Post the Write stage's markdown output to the chat, unmodified. That is the brief.
 
-... (2-3 total)
-
-## Data notes
-<Only if the quality report flagged anything — see Failure modes. Plain language.
-Also note any deliberate skew across goals and a strong runner-up if useful.>
-```
-
-Keep it scannable — the CEO reads this in a week-planning session. No more than
-5 picks in "This week's focus." Every pick names a goal, cites real evidence, gives
-a concrete move, and states what's at risk. The Dormant section holds a separate
-2-3 people (no overlap with the focus picks). The Executive summary is written last
-and only summarizes claims already grounded below it.
-
-### Step 4 — Handling follow-up questions and revision requests
+### Step 6 — Handling follow-up questions and revision requests
 
 The brief is not the end of the conversation. The operator or CEO may push back,
-ask why someone was or wasn't included, or ask for a change. The same rules from
-Steps 2-3 still apply — never relax the grounding rule just because the ask came
-after the brief was already produced.
+ask why someone was or wasn't included, or ask for a change. The same grounding
+rule from Step 2 still applies — never relax it just because the ask came after
+the brief was already produced. For a substantive swap or addition, re-run Steps
+2-4 (Select → Verify → Write) for the changed pick rather than editing prose by
+hand — that keeps the same trust guarantees on any revision.
 
 **"Why is/isn't X in the brief?"** — Re-derive the answer from the already-loaded
 roster and `signals`, never from memory or a plausible-sounding guess. Answer in

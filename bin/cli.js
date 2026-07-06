@@ -8,9 +8,10 @@
  *   npx network-focus-skill uninstall    Remove everything the installer created
  *
  * The installer is intentionally boring and safe: it creates ~/.claude only if it
- * doesn't exist, copies just this skill's files, and never touches any other Claude
- * Code config. Re-running updates the skill in place. Uninstall removes only the
- * files this tool created, leaving the rest of ~/.claude alone.
+ * doesn't exist, copies just this skill's files (skill folder, slash command, and
+ * its two sub-agents — verify-brief, write-brief), and never touches any other
+ * Claude Code config. Re-running updates the skill in place. Uninstall removes only
+ * the files this tool created, leaving the rest of ~/.claude alone.
  */
 
 const fs = require("fs");
@@ -31,6 +32,11 @@ const CMD_SRC = path.join(SKILL_SRC, "commands", "network-brief.md");
 const CMD_DEST = path.join(CLAUDE_DIR, "commands", "network-brief.md");
 const SETTINGS_DEST = path.join(CLAUDE_DIR, "network-focus.settings.json");
 const SETTINGS_EXAMPLE = path.join(SKILL_SRC, "reference", "settings.example.json");
+const AGENTS_SRC = path.join(SKILL_SRC, "agents");
+// The skill's sub-agents are copied to the global agents dir (not just nested
+// under the skill folder) so Claude Code's Agent tool can discover them by name.
+const AGENT_NAMES = ["verify-brief.md", "write-brief.md"];
+const AGENTS_DEST_DIR = path.join(CLAUDE_DIR, "agents");
 
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
@@ -50,6 +56,7 @@ function install() {
   // Create global Claude dirs if missing; never clobber existing config.
   fs.mkdirSync(path.join(CLAUDE_DIR, "skills"), { recursive: true });
   fs.mkdirSync(path.join(CLAUDE_DIR, "commands"), { recursive: true });
+  fs.mkdirSync(AGENTS_DEST_DIR, { recursive: true });
   ok("~/.claude is ready (existing config left untouched)");
 
   // Copy just this skill's folder.
@@ -60,6 +67,16 @@ function install() {
   // Copy the slash command.
   fs.copyFileSync(CMD_SRC, CMD_DEST);
   ok("Command /network-brief installed");
+
+  // Copy the two sub-agents (Verify, Write) to the global agents dir so the Agent
+  // tool can find them by name. Only touch files with these exact names.
+  for (const agentFile of AGENT_NAMES) {
+    fs.copyFileSync(
+      path.join(AGENTS_SRC, agentFile),
+      path.join(AGENTS_DEST_DIR, agentFile),
+    );
+  }
+  ok("Sub-agents installed: verify-brief, write-brief");
 
   // Create settings only if absent, so we never overwrite a configured path.
   let needsPath = false;
@@ -109,6 +126,12 @@ function uninstall() {
   removeDir(SKILL_DEST, `skill folder (${SKILL_DEST})`);
   removeFile(CMD_DEST, "command /network-brief");
 
+  // Only remove the two specific agent files this skill installed — never touch
+  // other custom agents the operator may have in ~/.claude/agents.
+  for (const agentFile of AGENT_NAMES) {
+    removeFile(path.join(AGENTS_DEST_DIR, agentFile), `sub-agent (${agentFile})`);
+  }
+
   if (keepSettings) {
     if (fs.existsSync(SETTINGS_DEST)) {
       warn(`Kept settings file: ${SETTINGS_DEST} (--keep-settings)`);
@@ -117,9 +140,13 @@ function uninstall() {
     removeFile(SETTINGS_DEST, `settings file (${SETTINGS_DEST})`);
   }
 
-  // Clean up now-empty skills/commands dirs we may have created, but never remove
-  // ~/.claude itself or any dir that still holds other config.
-  for (const dir of [path.join(CLAUDE_DIR, "skills"), path.join(CLAUDE_DIR, "commands")]) {
+  // Clean up now-empty skills/commands/agents dirs we may have created, but never
+  // remove ~/.claude itself or any dir that still holds other config.
+  for (const dir of [
+    path.join(CLAUDE_DIR, "skills"),
+    path.join(CLAUDE_DIR, "commands"),
+    AGENTS_DEST_DIR,
+  ]) {
     if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
       fs.rmdirSync(dir);
     }

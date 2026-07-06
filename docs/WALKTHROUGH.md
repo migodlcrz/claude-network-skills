@@ -22,9 +22,12 @@ lives in the build:
    the judgment." → open `skill/network-focus/scripts/load_roster.js` and show it's
    plain parsing/validation, no model. Then open `SKILL.md` and show the instruction
    *"you must never read the spreadsheet yourself."*
-2. **Reliability: pre-scoring + grounding (PRD §5.4).** → show `computeSignals()` in
-   the loader computing goal matches/recency, and the **grounding rule** in
-   `SKILL.md` that forces every pick to cite a real row field.
+2. **Single agent vs. sub-agents, decided per-seam (PRD §5.2).** → open
+   `SKILL.md`'s "Pipeline shape" line and the Step 2/3/4 headers: Select stays in
+   the main thread (one coherent judgment), but Verify and Write are separate
+   sub-agents (`skill/network-focus/agents/verify-brief.md`,
+   `agents/write-brief.md`) because they're genuinely different jobs — an
+   adversarial check and a constrained render. Show the two agent files briefly.
 
 ---
 
@@ -64,18 +67,29 @@ This also makes it debuggable for a non-technical operator: if something looks o
 it's either the data (the script says so, in plain English) or the judgment (one
 place to look) — never a murky mix.
 
-I deliberately rejected a flashier "two AI agents talking to each other" design: it
-would have reintroduced exactly the trust problem I was trying to eliminate.
-
 **On Claude Code primitives (architecture — §C).** I use skills packaging, a slash
-command (`/network-brief`), and deterministic structured I/O. I *chose not to* use
-sub-agents or MCP in v1 — not from unfamiliarity, but because for a 25-row weekly
-task a single grounded reasoning pass is more reliable and far easier for a
-non-technical operator to trust and debug. The natural place a sub-agent *would* earn
-its keep is a verify pass (an independent reviewer that checks each pick is grounded
-and the goals are balanced); I'd add that first if scaling up, and the design leaves
-room for it without disturbing the trust boundary. Production data sourcing is where
-MCP belongs — see PRD §7.
+command (`/network-brief`), deterministic structured I/O, and two sub-agents — but
+I drew the line on *where* deliberately, not by adding agents everywhere I could:
+
+- **Parsing stays deterministic code, no agent.** An agent that parses the
+  spreadsheet can misread a date or blur two similarly-named contacts, and because
+  it's a model call, I might never notice. That reintroduces exactly the trust
+  problem I was trying to eliminate — so parsing is plain code, full stop.
+- **Selecting who matters this week stays one reasoning pass, no additional agent.**
+  Ranking contacts against three goals — strength × recency × timing together — is
+  one coherent judgment, not independently-decomposable sub-tasks. Splitting the
+  selection itself across agents would add a handoff with no new capability.
+- **Verifying the selection and writing it up ARE two separate sub-agents,** because
+  those genuinely are different jobs: `verify-brief` is an *adversarial* check —
+  deliberately a different context from the one that made the picks, so it isn't
+  defending its own reasoning, and it independently confirms every citation and the
+  goal balance. `write-brief` is a constrained render — it turns verified facts into
+  prose without being allowed to add a new claim of its own. Separating "decide"
+  from "check" from "phrase persuasively" means each stage has a narrow,
+  checkable job instead of one pass doing everything and grading its own work.
+
+Production data sourcing (Calendar/Gmail/CRM) is where MCP would belong — see PRD §7
+— not built for this trial since it's a thinking exercise, not a building one.
 
 ## 3. How your chief of staff uses it
 
@@ -149,8 +163,14 @@ than a brief that admits what it doesn't know.
   brief inherits that. Deliberate — strength is a human judgment — but a limitation.
 - **No memory across weeks.** It can't yet see "recommended last week, still no
   contact." A feedback loop (below) fixes this.
-- **No verify pass.** A single reasoning pass; I'd add an independent grounding/balance
-  checker (a sub-agent) before scaling to larger rosters.
+- **Verify is a single independent pass, not a panel.** `verify-brief` catches
+  ungrounded citations and goal imbalance well, but it's one adversarial check, not
+  three-vote consensus. At higher stakes or larger rosters, I'd run 2-3 verify
+  agents and require majority agreement before a pick survives.
+- **No deterministic shortlist stage yet.** At 500+ contacts, handing the full
+  roster to Select would bloat context and risk "lost in the middle" inconsistency.
+  I'd add a pre-filter stage in the loader — still deterministic code, same trust
+  boundary — before Select ever sees the roster (see PRD §9).
 
 ## 7. What I'd build next
 
