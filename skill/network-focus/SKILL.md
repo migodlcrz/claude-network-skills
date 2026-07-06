@@ -58,7 +58,21 @@ It prints a single JSON object to stdout with this shape:
 ```json
 {
   "ok": true,
-  "roster": [ { "name": "...", "role": "...", ... } ],
+  "roster": [
+    {
+      "name": "...", "role": "...", "company": "...", "relationship": "...",
+      "last_contact_date": "...", "last_contact_channel": "...",
+      "last_contact_summary": "...", "strength": 4, "tags": "...", "notes": "...",
+      "signals": {
+        "goal_matches": ["series_c"],
+        "goal_match_labels": ["Series C"],
+        "days_since_contact": 120,
+        "recency_bucket": "aging",
+        "dormant_but_strong": true,
+        "goal_aligned_but_weak": false
+      }
+    }
+  ],
   "quality": {
     "total_contacts": 42,
     "missing_goal_contacts": ["..."],
@@ -69,35 +83,59 @@ It prints a single JSON object to stdout with this shape:
 }
 ```
 
+**About `signals` (pre-computed by the loader — objective, not judgment):**
+The script pre-computes these features so you reason over structured facts instead
+of re-deriving them from raw text. They are *inputs to your judgment*, not a ranking:
+- `goal_matches` / `goal_match_labels` — which of the three goals this contact's
+  tags/role/notes plausibly relate to. Empty means no keyword match — but use your
+  own judgment too; the keyword scan can miss things.
+- `recency_bucket` — `fresh` (≤14d), `recent` (≤45d), `warm` (≤90d), `aging`
+  (≤180d), `dormant` (>180d), or `unknown` (no date).
+- `dormant_but_strong` — strong relationship (4-5) gone cold (>90d): a high-value,
+  low-cost reconnect. A prime candidate for the brief.
+- `goal_aligned_but_weak` — relates to a goal but strength ≤2: needs a warmer path
+  or a specific reason to be worth the week.
+
 If the top-level `"ok"` is `false`, STOP the normal flow and handle it per
 **Failure modes** below. Do not fabricate a brief from missing data.
 
 ### Step 2 — Reason over the data (one pass — this is your job)
 
-Using the loaded roster and quality report, produce the brief. This single
-reasoning pass is the intelligence of the skill: match contacts to goals, weigh
-relationship strength against staleness, and justify every pick.
+Using the loaded roster (including each contact's `signals`) and the quality report,
+produce the brief. This single reasoning pass is the intelligence of the skill. The
+loader has already done the objective feature extraction; your job is judgment.
 
-Scoring guidance (judgment, not a rigid formula):
+Work in two sub-steps so the reasoning is sound and auditable:
 
-- **Goal alignment first.** A contact only makes the brief if reaching out to them
-  plausibly advances one of the three goals this week. Name the goal explicitly.
-- **Leverage over comfort.** Prefer the contact who unlocks a goal (a warm intro to
-  a Series C firm, a CTO candidate, an AI-safety researcher) over a strong but
-  goal-irrelevant relationship.
-- **Balance the goals.** Aim to serve all three goals across the 3-5 picks rather
-  than five investor contacts and nothing for CTO or AI safety — unless the data
-  clearly justifies a skew. Call out the skew if you make one.
-- **Relationship strength & recency.** A strong (4-5) relationship gone stale is a
-  high-value, low-cost reconnect. A weak (1-2) relationship needs a warmer path or
-  a reason. Factor staleness in: a warm contact not touched in months is often a
-  better use of a week than someone she spoke to yesterday.
-- **Actionability.** Each pick must come with a concrete suggested action ("ask X
-  for the a16z intro," "re-engage Y about the CTO search").
+**2a. Shortlist against a rubric (consider ALL contacts first — don't jump to 5).**
+For each goal-aligned contact, weigh:
+- **Goal alignment** — reaching out plausibly advances one of the three goals this
+  week. Use `signals.goal_match_labels` as a starting point, but apply your own
+  judgment (the keyword scan can miss or over-match).
+- **Leverage over comfort** — prefer the contact who *unlocks* a goal (a warm intro
+  to a Series C firm, a CTO candidate, an AI-safety researcher, someone who opens a
+  pipeline) over a strong but goal-irrelevant relationship.
+- **Timing / openings** — a live thread with a ball in her court ("asked for the
+  deck," "revisit in a month" window now open) beats a cold outreach.
+- **Strength × recency** — `dormant_but_strong` contacts are high-value, low-cost
+  reconnects. `goal_aligned_but_weak` contacts need a warmer path or a specific
+  reason. A `dormant`/`aging` warm relationship is often a better use of a week than
+  someone contacted yesterday.
 
-### Step 3 — Emit the brief (markdown)
+**2b. Select the top 3-5** across the goals. Aim to serve all three goals rather
+than five of one — unless the data clearly justifies a skew, in which case say so
+explicitly in Data notes.
 
-Output the brief as markdown to the chat. Structure:
+**Grounding rule (do not skip):** every pick must be justified by *specific evidence
+that exists in that contact's roster row* — quote or closely paraphrase a real
+`last_contact_summary`, `notes`, `strength`, or date. If you cannot point to a
+concrete field that supports a claim, do not make the claim. Never invent a reason,
+a past interaction, or a detail that is not in the data.
+
+### Step 3 — Emit the brief (grounded markdown)
+
+Output the brief as markdown to the chat. Every pick uses this structure, and the
+**Evidence** line must cite real data from that contact's row:
 
 ```
 # Network Focus — Week of <Monday's date>
@@ -108,17 +146,20 @@ Output the brief as markdown to the chat. Structure:
 
 ### 1. <Name> — <Role>, <Company>
 - **Goal:** <which of the three goals>
-- **Why now:** <1-2 sentences: relationship strength, recency, the specific opening>
+- **Evidence:** <a real quote/paraphrase from this row: strength, recency bucket or
+  date, and the specific line from summary/notes that supports the pick>
+- **Why now:** <1-2 sentences tying that evidence to why this week>
 - **Suggested action:** <concrete, specific next step>
 
 ... (repeat for each pick, 3-5 total)
 
 ## Data notes
-<Only if the quality report flagged anything — see Failure modes. Plain language.>
+<Only if the quality report flagged anything — see Failure modes. Plain language.
+Also note any deliberate skew across goals and a strong runner-up if useful.>
 ```
 
 Keep it scannable — the CEO reads this in a week-planning session. No more than
-5 picks. Every pick names a goal and a concrete action.
+5 picks. Every pick names a goal, cites real evidence, and gives a concrete action.
 
 ## Failure modes (handle explicitly — never fake a result)
 

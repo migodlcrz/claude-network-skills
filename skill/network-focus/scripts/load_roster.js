@@ -35,15 +35,32 @@ const COLUMN_ALIASES = {
   name: ["name", "full name", "contact"],
   role: ["role", "title", "position"],
   company: ["company", "org", "organization", "organisation"],
-  relationship: ["how she knows them", "relationship", "how i know them",
-    "connection", "how we met"],
-  last_contact_date: ["last contact date", "last contacted", "last contact",
-    "last touch date"],
+  relationship: [
+    "how she knows them",
+    "relationship",
+    "how i know them",
+    "connection",
+    "how we met",
+  ],
+  last_contact_date: [
+    "last contact date",
+    "last contacted",
+    "last contact",
+    "last touch date",
+  ],
   last_contact_channel: ["last contact channel", "channel", "last channel"],
-  last_contact_summary: ["last contact summary", "summary", "last summary",
-    "last interaction"],
-  strength: ["relationship strength", "strength", "relationship strength (1-5)",
-    "rel strength"],
+  last_contact_summary: [
+    "last contact summary",
+    "summary",
+    "last summary",
+    "last interaction",
+  ],
+  strength: [
+    "relationship strength",
+    "strength",
+    "relationship strength (1-5)",
+    "rel strength",
+  ],
   tags: ["tags", "tag"],
   notes: ["notes", "note", "comments"],
 };
@@ -62,7 +79,8 @@ function expandHome(p) {
 
 function findSettingsPath() {
   const argIdx = process.argv.indexOf("--settings");
-  if (argIdx !== -1 && process.argv[argIdx + 1]) return process.argv[argIdx + 1];
+  if (argIdx !== -1 && process.argv[argIdx + 1])
+    return process.argv[argIdx + 1];
   const candidates = [
     path.join(os.homedir(), ".claude", "network-focus.settings.json"),
     path.join(__dirname, "..", "reference", "settings.example.json"),
@@ -79,16 +97,23 @@ function resolveRosterPath() {
     try {
       settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
     } catch (e) {
-      fail(`Settings file ${settingsPath} is not valid JSON: ${e.message}`,
-        "Fix the JSON syntax in your settings file (a missing comma or quote).");
+      fail(
+        `Settings file ${settingsPath} is not valid JSON: ${e.message}`,
+        "Fix the JSON syntax in your settings file (a missing comma or quote).",
+      );
     }
     if (settings.rosterPath) {
-      return { p: expandHome(settings.rosterPath), source: `rosterPath in ${settingsPath}` };
+      return {
+        p: expandHome(settings.rosterPath),
+        source: `rosterPath in ${settingsPath}`,
+      };
     }
   }
-  fail("No roster path configured.",
+  fail(
+    "No roster path configured.",
     "Set 'rosterPath' in ~/.claude/network-focus.settings.json to the full path of " +
-    "your roster CSV/XLSX file, or set the NETWORK_ROSTER_PATH env var.");
+      "your roster CSV/XLSX file, or set the NETWORK_ROSTER_PATH env var.",
+  );
 }
 
 // ---- CSV parsing (RFC-4180-ish: quotes, embedded commas/newlines) -------------
@@ -102,22 +127,30 @@ function parseCSV(text) {
     const c = text[i];
     if (inQuotes) {
       if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
       } else field += c;
     } else if (c === '"') {
       inQuotes = true;
     } else if (c === ",") {
-      row.push(field); field = "";
+      row.push(field);
+      field = "";
     } else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(field); field = "";
-      rows.push(row); row = [];
+      row.push(field);
+      field = "";
+      rows.push(row);
+      row = [];
     } else {
       field += c;
     }
   }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows.filter((r) => r.some((v) => v !== ""));
 }
 
@@ -127,7 +160,10 @@ function unzipEntries(buf) {
   // Locate End Of Central Directory record (scan backwards for signature).
   let eocd = -1;
   for (let i = buf.length - 22; i >= 0; i--) {
-    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
   }
   if (eocd === -1) throw new Error("not a valid zip/xlsx file");
   const cdCount = buf.readUInt16LE(eocd + 10);
@@ -162,15 +198,19 @@ function xmlMatchAll(xml, re) {
 
 function decodeXmlEntities(s) {
   return s
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d))
     .replace(/&amp;/g, "&");
 }
 
 function parseXLSX(buf) {
   const entries = unzipEntries(buf);
-  const sheetName = Object.keys(entries).find((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k));
+  const sheetName = Object.keys(entries).find((k) =>
+    /^xl\/worksheets\/sheet\d+\.xml$/.test(k),
+  );
   if (!sheetName) throw new Error("no worksheet found in xlsx");
   const sheetXml = entries[sheetName].toString("utf8");
 
@@ -179,7 +219,9 @@ function parseXLSX(buf) {
   if (entries["xl/sharedStrings.xml"]) {
     const ss = entries["xl/sharedStrings.xml"].toString("utf8");
     for (const m of xmlMatchAll(ss, /<si>([\s\S]*?)<\/si>/g)) {
-      const texts = xmlMatchAll(m[1], /<t[^>]*>([\s\S]*?)<\/t>/g).map((t) => t[1]);
+      const texts = xmlMatchAll(m[1], /<t[^>]*>([\s\S]*?)<\/t>/g).map(
+        (t) => t[1],
+      );
       shared.push(decodeXmlEntities(texts.join("")));
     }
   }
@@ -194,7 +236,10 @@ function parseXLSX(buf) {
   const rows = [];
   for (const rm of xmlMatchAll(sheetXml, /<row[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells = [];
-    for (const cm of xmlMatchAll(rm[1], /<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    for (const cm of xmlMatchAll(
+      rm[1],
+      /<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g,
+    )) {
       const attrs = cm[1];
       const inner = cm[2] || "";
       const refM = /r="([A-Z]+\d+)"/.exec(attrs);
@@ -204,11 +249,13 @@ function parseXLSX(buf) {
       const tM = /<t[^>]*>([\s\S]*?)<\/t>/.exec(inner);
       let val = "";
       if (typeM && typeM[1] === "s" && vM) val = shared[+vM[1]] || "";
-      else if (typeM && typeM[1] === "inlineStr" && tM) val = decodeXmlEntities(tM[1]);
+      else if (typeM && typeM[1] === "inlineStr" && tM)
+        val = decodeXmlEntities(tM[1]);
       else if (vM) val = decodeXmlEntities(vM[1]);
       cells[idx] = val;
     }
-    for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = "";
+    for (let i = 0; i < cells.length; i++)
+      if (cells[i] === undefined) cells[i] = "";
     rows.push(cells);
   }
   return rows.filter((r) => r.some((v) => v !== ""));
@@ -218,9 +265,11 @@ function parseXLSX(buf) {
 
 function readRows(p) {
   if (!fs.existsSync(p)) {
-    fail(`Roster file not found at: ${p}`,
+    fail(
+      `Roster file not found at: ${p}`,
       "Check the file location and update 'rosterPath' in your settings, then run " +
-      "the brief again.");
+        "the brief again.",
+    );
   }
   const ext = path.extname(p).toLowerCase();
   let matrix;
@@ -230,21 +279,30 @@ function readRows(p) {
     try {
       matrix = parseXLSX(fs.readFileSync(p));
     } catch (e) {
-      fail(`Could not read the Excel file: ${e.message}`,
+      fail(
+        `Could not read the Excel file: ${e.message}`,
         "Try opening the sheet and saving it as CSV (File > Save As > CSV), then " +
-        "point rosterPath at the .csv file.");
+          "point rosterPath at the .csv file.",
+      );
     }
   } else {
-    fail(`Unsupported file type: ${ext || "(none)"}`,
-      "Use a .csv or .xlsx file for the roster.");
+    fail(
+      `Unsupported file type: ${ext || "(none)"}`,
+      "Use a .csv or .xlsx file for the roster.",
+    );
   }
   if (!matrix || matrix.length === 0) {
-    fail(`The roster at ${p} is empty.`, "Add a header row and at least one contact.");
+    fail(
+      `The roster at ${p} is empty.`,
+      "Add a header row and at least one contact.",
+    );
   }
   const headers = matrix[0].map((h) => (h == null ? "" : String(h).trim()));
   return matrix.slice(1).map((r) => {
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = r[i] == null ? "" : String(r[i]).trim(); });
+    headers.forEach((h, i) => {
+      obj[h] = r[i] == null ? "" : String(r[i]).trim();
+    });
     return obj;
   });
 }
@@ -257,7 +315,10 @@ function buildColumnMap(headers) {
   const colmap = {};
   for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
     for (const alias of aliases) {
-      if (normalized[alias]) { colmap[field] = normalized[alias]; break; }
+      if (normalized[alias]) {
+        colmap[field] = normalized[alias];
+        break;
+      }
     }
   }
   return colmap;
@@ -310,13 +371,124 @@ function normalizeRow(row, colmap) {
   };
 }
 
+// Objective signal keywords per goal. The script uses these only to FLAG which
+// goals a contact plausibly relates to — it does not rank or decide. The LLM still
+// weighs the signals and makes the final call. Edit these if the goals change.
+const GOAL_SIGNALS = {
+  series_c: {
+    label: "Series C",
+    keywords: [
+      "investor",
+      "series-c",
+      "seriesc",
+      "series c",
+      "vc",
+      "capital",
+      "ventures",
+      "venture",
+      "fund",
+      "angel",
+      "partner",
+      "raise",
+    ],
+  },
+  cto_hire: {
+    label: "CTO hire",
+    keywords: [
+      "cto",
+      "cto-candidate",
+      "engineering",
+      "vp eng",
+      "vp engineering",
+      "eng manager",
+      "engineering manager",
+      "scaled",
+      "scaling",
+      "talent",
+      "recruiter",
+      "head of ai",
+      "eng-org",
+      "eng org",
+    ],
+  },
+  ai_safety: {
+    label: "AI safety",
+    keywords: [
+      "ai-safety",
+      "ai safety",
+      "safety",
+      "alignment",
+      "anthropic",
+      "arc",
+      "miri",
+      "researcher",
+      "research",
+      "csail",
+      "deepmind",
+    ],
+  },
+};
+
+function recencyBucket(days) {
+  if (days === null) return "unknown";
+  if (days <= 14) return "fresh";
+  if (days <= 45) return "recent";
+  if (days <= 90) return "warm";
+  if (days <= 180) return "aging";
+  return "dormant";
+}
+
+function computeSignals(contact, now) {
+  const hay = [
+    contact.tags,
+    contact.role,
+    contact.company,
+    contact.relationship,
+    contact.last_contact_summary,
+    contact.notes,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  // Word-boundary match so short keywords (arc, vc, miri) don't match inside other
+  // words — e.g. "arc" must not match "se(arc)h".
+  const matches = (kw) => {
+    const re = new RegExp(
+      `(^|[^a-z0-9])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`,
+      "i",
+    );
+    return re.test(hay);
+  };
+  const goalMatches = [];
+  for (const [key, def] of Object.entries(GOAL_SIGNALS)) {
+    if (def.keywords.some(matches)) goalMatches.push(key);
+  }
+
+  const d = parseDate(contact.last_contact_date);
+  const days = d === null ? null : Math.round((now - d) / 86400000);
+  const bucket = recencyBucket(days);
+  const s = contact.strength;
+
+  return {
+    goal_matches: goalMatches,
+    goal_match_labels: goalMatches.map((k) => GOAL_SIGNALS[k].label),
+    days_since_contact: days,
+    recency_bucket: bucket,
+    // Strong relationship left to cool: a high-value, low-cost reconnect.
+    dormant_but_strong: s !== null && s >= 4 && days !== null && days > 90,
+    // Goal-aligned but weak/thin: needs a warmer path or a reason.
+    goal_aligned_but_weak: goalMatches.length > 0 && s !== null && s <= 2,
+  };
+}
+
 function loadGoalContacts() {
   const p = path.join(__dirname, "..", "reference", "goals.md");
   if (!fs.existsSync(p)) return [];
   const text = fs.readFileSync(p, "utf8");
   const m = /##\s*goal_contacts([\s\S]*?)(?:\n##\s|$)/i.exec(text);
   if (!m) return [];
-  return m[1].split("\n")
+  return m[1]
+    .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.startsWith("-"))
     .map((l) => l.replace(/^-+/, "").trim())
@@ -325,17 +497,28 @@ function loadGoalContacts() {
 
 function today() {
   const override = process.env.NETWORK_TODAY;
-  if (override) { const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(override); if (m) return new Date(+m[1], +m[2] - 1, +m[3]); }
+  if (override) {
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(override);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  }
   return new Date();
 }
 
 function buildQualityReport(roster, colmap, goalContacts) {
   const warnings = [];
-  const missingCols = ["name", "role", "company", "strength", "last_contact_date"]
-    .filter((f) => !(f in colmap));
+  const missingCols = [
+    "name",
+    "role",
+    "company",
+    "strength",
+    "last_contact_date",
+  ].filter((f) => !(f in colmap));
   if (missingCols.length) {
-    warnings.push("Could not find expected columns: " + missingCols.join(", ") +
-      ". Scoring may be less accurate.");
+    warnings.push(
+      "Could not find expected columns: " +
+        missingCols.join(", ") +
+        ". Scoring may be less accurate.",
+    );
   }
 
   const now = today();
@@ -347,20 +530,29 @@ function buildQualityReport(roster, colmap, goalContacts) {
     if (d === null) thin.push(c.name);
     else if ((now - d) / 86400000 > STALE_DAYS) stale.push(c.name);
     const blob = (c.last_contact_summary + " " + c.notes).trim();
-    if (blob.length < THIN_SUMMARY_MIN && !thin.includes(c.name)) thin.push(c.name);
+    if (blob.length < THIN_SUMMARY_MIN && !thin.includes(c.name))
+      thin.push(c.name);
   }
 
-  const haystack = roster.filter((c) => c.name).map((c) => ({ n: c.name, co: c.company }));
+  const haystack = roster
+    .filter((c) => c.name)
+    .map((c) => ({ n: c.name, co: c.company }));
   const missingGoal = [];
   for (const gc of goalContacts) {
     const gcl = gc.toLowerCase();
     const matches = haystack
-      .filter((h) => h.n.toLowerCase().includes(gcl) || (h.co && h.co.toLowerCase().includes(gcl)))
+      .filter(
+        (h) =>
+          h.n.toLowerCase().includes(gcl) ||
+          (h.co && h.co.toLowerCase().includes(gcl)),
+      )
       .map((h) => h.n);
     const unique = [...new Set(matches)];
     if (unique.length === 0) missingGoal.push(gc);
     else if (unique.length > 1) {
-      warnings.push(`'${gc}' matches multiple contacts: ${unique.sort().join(", ")}`);
+      warnings.push(
+        `'${gc}' matches multiple contacts: ${unique.sort().join(", ")}`,
+      );
     }
   }
 
@@ -378,24 +570,32 @@ function main() {
   const { p, source } = resolveRosterPath();
   const rows = readRows(p);
   if (rows.length === 0) {
-    fail(`The roster at ${p} has a header but no contact rows.`,
-      "Add at least one contact row to the spreadsheet.");
+    fail(
+      `The roster at ${p} has a header but no contact rows.`,
+      "Add at least one contact row to the spreadsheet.",
+    );
   }
   const colmap = buildColumnMap(Object.keys(rows[0]));
   if (!("name" in colmap)) {
-    fail("Could not find a 'Name' column in the roster.",
-      "Make sure the first row has column headers including a 'Name' column.");
+    fail(
+      "Could not find a 'Name' column in the roster.",
+      "Make sure the first row has column headers including a 'Name' column.",
+    );
   }
   const roster = rows.map((r) => normalizeRow(r, colmap)).filter((c) => c.name);
+  const now = today();
+  for (const c of roster) c.signals = computeSignals(c, now);
   const goalContacts = loadGoalContacts();
   const quality = buildQualityReport(roster, colmap, goalContacts);
-  process.stdout.write(JSON.stringify({
-    ok: true,
-    source,
-    roster_path: p,
-    roster,
-    quality,
-  }));
+  process.stdout.write(
+    JSON.stringify({
+      ok: true,
+      source,
+      roster_path: p,
+      roster,
+      quality,
+    }),
+  );
 }
 
 main();
