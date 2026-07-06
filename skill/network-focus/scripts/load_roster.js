@@ -29,6 +29,9 @@ const zlib = require("zlib");
 
 const STALE_DAYS = 90;
 const THIN_SUMMARY_MIN = 15;
+// A contact is a "dormant relationship" candidate if not contacted in 60+ days
+// (per the brief's Dormant section) AND still goal-aligned — regardless of strength.
+const DORMANT_DAYS = 60;
 
 // Canonical field -> accepted header spellings (lowercased, trimmed).
 const COLUMN_ALIASES = {
@@ -478,6 +481,9 @@ function computeSignals(contact, now) {
     dormant_but_strong: s !== null && s >= 4 && days !== null && days > 90,
     // Goal-aligned but weak/thin: needs a warmer path or a reason.
     goal_aligned_but_weak: goalMatches.length > 0 && s !== null && s <= 2,
+    // Dormant-relationship candidate: 60+ days silent AND still goal-aligned. Feeds
+    // the brief's dedicated Dormant Relationships section.
+    dormant_candidate: goalMatches.length > 0 && days !== null && days >= DORMANT_DAYS,
   };
 }
 

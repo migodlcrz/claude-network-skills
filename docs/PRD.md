@@ -56,6 +56,51 @@ instead of a blank page.
 - Editing the roster from within the skill.
 - Multi-user / multi-CEO support.
 
+## 4.5 Inputs and outputs
+
+### Inputs
+1. **Roster spreadsheet** (CSV or XLSX), one contact per row. Columns (tolerant
+   header matching, so minor naming differences work):
+   `Name, Role, Company, How she knows them, Last contact date, Last contact channel,
+   Last contact summary, Relationship strength (1-5), Tags, Notes`.
+2. **Goals** — `reference/goals.md`, the three quarterly goals plus a `goal_contacts`
+   list of people/firms named in the goals (used for the missing-contact check).
+3. **Config** — `~/.claude/network-focus.settings.json` with `rosterPath`.
+
+### Loader output (deterministic → the LLM's only view of the data)
+```jsonc
+{
+  "ok": true,
+  "roster": [{
+    "name","role","company","relationship","last_contact_date",
+    "last_contact_channel","last_contact_summary","strength","tags","notes",
+    "signals": {                     // pre-computed objective features, not judgment
+      "goal_matches": ["cto_hire"],  // which goals the row's tags/role/notes touch
+      "goal_match_labels": ["CTO hire"],
+      "days_since_contact": 68,
+      "recency_bucket": "warm",      // fresh/recent/warm/aging/dormant/unknown
+      "dormant_but_strong": false,   // strength>=4 & >90d: high-value reconnect
+      "goal_aligned_but_weak": false,// goal-aligned but strength<=2
+      "dormant_candidate": true      // 60+ days & goal-aligned: dormant-section pool
+    }
+  }],
+  "quality": {
+    "total_contacts": 25,
+    "missing_goal_contacts": ["a16z"],
+    "stale_contacts": ["Reid Hoffman", ...],   // >90 days
+    "thin_contacts": [],                        // empty/short summary+notes
+    "warnings": []                              // incl. ambiguous name matches
+  }
+}
+// On failure: { "ok": false, "error": "...", "hint": "..." }
+```
+
+### Brief output (markdown)
+- **This week's focus** — 3-5 people. Each: name/role/company, goal, grounded
+  evidence, why now, suggested move, and **what's at risk if she waits**.
+- **Dormant relationships** — 2-3 people (60+ days, goal-aligned) worth reviving.
+- **Data notes** — surfaced failure-mode flags and any deliberate goal skew.
+
 ## 5. Design
 
 ### 5.1 Trust boundary — the core decision
@@ -86,17 +131,49 @@ the hallucination risk the trust boundary exists to remove.)
 ```
 npx github:…/claude-network-skills install   (one-time: copy skill into ~/.claude)
 /network-brief
-   └─> node scripts/load_roster.js           (deterministic: parse + validate)
-          └─> {ok, roster[], quality{}}       (clean JSON to Claude)
+   └─> node scripts/load_roster.js           (deterministic: parse + validate + PRE-SCORE)
+          └─> {ok, roster[+signals], quality{}}   (clean JSON to Claude)
                  └─> Claude: one reasoning pass over goals + roster + quality
-                        └─> Markdown brief (3-5 picks) + Data notes
+                        └─> Markdown brief (focus + dormant + data notes)
 ```
 
-### 5.4 Scoring guidance (judgment, not a rigid formula)
-Goal alignment is the gate; then leverage over comfort; balance across the three
-goals; factor relationship strength and staleness (a strong-but-stale contact is a
-high-value reconnect); every pick gets a concrete action. Full guidance lives in
-`SKILL.md` so it is versioned with the skill.
+### 5.4 Reliability: pre-scoring + grounding
+Two design choices make the reasoning more consistent and less prone to fabrication,
+without adding agents:
+
+1. **Deterministic pre-scoring.** The loader computes objective `signals` per contact
+   (goal matches via word-boundary keyword scan, recency bucket, dormant/weak flags).
+   The LLM reasons over these *structured features* instead of re-deriving them from
+   raw text each run — so picks are stable week to week and less hallucination-prone.
+2. **Grounding rule.** Every pick must cite specific evidence that exists in that
+   contact's row (a real summary/notes line, strength, or date). If the model can't
+   point to a concrete field, it can't make the claim. This is the primary
+   anti-hallucination lever and it keeps every recommendation traceable to a row.
+
+### 5.5 Scoring guidance (judgment, not a rigid formula)
+Goal alignment is the gate; then leverage over comfort; timing/openings; balance
+across the three goals; factor relationship strength and staleness (a strong-but-cold
+contact is a high-value reconnect). Every focus pick gets a concrete move + a risk of
+inaction; the dormant section holds 2-3 separate 60+-day goal-aligned reconnects.
+Full guidance lives in `SKILL.md` so it is versioned with the skill.
+
+### 5.6 Model choice
+**Reasoning pass: Claude Opus** (`opus`). The brief is the entire product surface —
+one judgment call per week that the CEO plans around — so quality dominates cost.
+Opus's stronger multi-constraint reasoning (balancing three goals × strength ×
+recency × leverage, then justifying each pick) is worth it for a low-frequency,
+high-stakes, low-token task (~25 rows, run weekly). A cheaper model would save
+fractions of a cent while risking weaker prioritization on the one output that
+matters. **The loader uses no model at all** — it's deterministic code — so the only
+model spend is the single reasoning pass.
+
+### 5.7 Claude Code primitives used
+- **Skills packaging** — the deliverable is a proper `SKILL.md` skill (name,
+  description, workflow, versioned scoring guidance), installable into `~/.claude`.
+- **Slash command** — `/network-brief` is the non-technical trigger.
+- **Structured input + deterministic scripting** — the loader is the trust boundary.
+- **Deliberately *not* sub-agents / MCP for v1** — see §5.2. The single-pass design
+  is a trust decision, not an oversight; production MCP sourcing is in §7.
 
 ## 6. Failure modes (≥2 required; we handle four)
 
@@ -106,6 +183,10 @@ high-value reconnect); every pick gets a concrete action. Full guidance lives in
 | B | **Stale / thin data** | Loader flags last-contact dates older than 90 days, or empty summary+notes | Contact may still be picked if it serves a goal, but flagged low-confidence in **Data notes** |
 | C | **Roster unreachable / unparseable** | Loader returns `ok:false` with a plain-language `error` + `hint` | No brief is produced; operator gets a plain-language fix (check `rosterPath`, export as CSV, etc.) |
 | D | **Ambiguous name match** | A goal name matches multiple roster rows | Loader lists candidates in `warnings`; brief asks operator to disambiguate rather than guessing |
+
+Note: A and B trigger on the provided roster (a16z missing; 7 stale contacts). C and
+D are handled in code but do not trigger on this dataset — they are exercised via
+malformed/duplicate test inputs, not staged in the demo.
 
 Design principle: **never fabricate a result.** Every failure surfaces to the
 operator in language a non-engineer can act on.
@@ -151,11 +232,13 @@ deployment, the roster would be assembled and kept fresh from multiple sources:
   reasoning pass would not change.
 
 ## 8. Success criteria
-- Operator can install and run the brief with **no code**, following the README.
-- Brief always names 3-5 people, each tied to a goal with a concrete action.
+- Operator can install and run the brief with **no code**, following the handoff doc.
+- Brief always names 3-5 focus people — each tied to a goal, with a concrete move and
+  a stated risk of inaction — plus 2-3 dormant reconnect candidates.
+- Every pick is traceable to a real roster row (grounding rule); no invented details.
 - All four failure modes produce a clear, actionable operator message — never a
   crash or a fabricated brief.
-- The CEO can trace any pick back to a real roster row.
+- Picks are stable run-to-run on unchanged data (pre-scoring reduces variance).
 
 ## 9. Future work
 - Deliver the brief as PDF/email/Slack.

@@ -69,7 +69,8 @@ It prints a single JSON object to stdout with this shape:
         "days_since_contact": 120,
         "recency_bucket": "aging",
         "dormant_but_strong": true,
-        "goal_aligned_but_weak": false
+        "goal_aligned_but_weak": false,
+        "dormant_candidate": true
       }
     }
   ],
@@ -95,6 +96,8 @@ of re-deriving them from raw text. They are *inputs to your judgment*, not a ran
   low-cost reconnect. A prime candidate for the brief.
 - `goal_aligned_but_weak` — relates to a goal but strength ≤2: needs a warmer path
   or a specific reason to be worth the week.
+- `dormant_candidate` — 60+ days since contact AND still goal-aligned (any strength):
+  the pool for the **Dormant relationships** section of the brief.
 
 If the top-level `"ok"` is `false`, STOP the normal flow and handle it per
 **Failure modes** below. Do not fabricate a brief from missing data.
@@ -149,9 +152,25 @@ Output the brief as markdown to the chat. Every pick uses this structure, and th
 - **Evidence:** <a real quote/paraphrase from this row: strength, recency bucket or
   date, and the specific line from summary/notes that supports the pick>
 - **Why now:** <1-2 sentences tying that evidence to why this week>
-- **Suggested action:** <concrete, specific next step>
+- **Suggested move:** <concrete, specific next step — a coffee, a thoughtful email,
+  an intro request, a follow-up>
+- **What's at risk if she waits:** <the concrete cost of inaction — a window closing,
+  a warm relationship cooling, a competitor/other founder getting there first>
 
 ... (repeat for each pick, 3-5 total)
+
+## Dormant relationships (reconnect candidates)
+Pick **2-3 people** from contacts flagged `signals.dormant_candidate` (60+ days
+since contact AND still goal-aligned) who remain high-leverage. These are not
+necessarily this week's top actions — they're relationships at risk of going cold
+that would be costly to lose. Do NOT repeat anyone already in "This week's focus."
+
+### <Name> — <Role>, <Company>
+- **Goal & leverage:** <which goal, and why they're still high-leverage>
+- **Evidence:** <real quote/paraphrase + days since contact from this row>
+- **Suggested move:** <a low-lift reconnect — a check-in note, a share, a quick call>
+
+... (2-3 total)
 
 ## Data notes
 <Only if the quality report flagged anything — see Failure modes. Plain language.
@@ -159,7 +178,9 @@ Also note any deliberate skew across goals and a strong runner-up if useful.>
 ```
 
 Keep it scannable — the CEO reads this in a week-planning session. No more than
-5 picks. Every pick names a goal, cites real evidence, and gives a concrete action.
+5 picks in "This week's focus." Every pick names a goal, cites real evidence, gives
+a concrete move, and states what's at risk. The Dormant section holds a separate
+2-3 people (no overlap with the focus picks).
 
 ## Failure modes (handle explicitly — never fake a result)
 
