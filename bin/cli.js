@@ -78,27 +78,25 @@ function install() {
   }
   ok("Sub-agents installed: verify-brief, write-brief");
 
-  // Create settings only if absent, so we never overwrite a configured path.
-  let needsPath = false;
+  // Create settings only if absent, so we never overwrite a configured override.
+  // The file ships with no active keys — the loader auto-discovers the roster by
+  // default, so most operators never need to open this file at all.
   if (!fs.existsSync(SETTINGS_DEST)) {
     fs.copyFileSync(SETTINGS_EXAMPLE, SETTINGS_DEST);
-    ok(`Created settings file: ${SETTINGS_DEST}`);
-    needsPath = true;
+    ok(`Created settings file: ${SETTINGS_DEST} (no changes needed by default)`);
   } else {
     ok(`Settings file already exists: ${SETTINGS_DEST} (left as-is)`);
   }
 
+  const ROSTER_FOLDER = path.join(os.homedir(), "Documents", "reports");
   console.log("\n-------------------------------------------------------------");
   console.log("Installed. One more step:\n");
-  if (needsPath) {
-    console.log("  Open this file and set the path to your roster spreadsheet:");
-    console.log(`    ${SETTINGS_DEST}\n`);
-    console.log('  Set "rosterPath" to the full path of your CSV or XLSX file, e.g.:');
-    console.log('    { "rosterPath": "~/Documents/terragrid-network-roster.csv" }');
-  } else {
-    console.log("  Your roster path is already set in:");
-    console.log(`    ${SETTINGS_DEST}`);
-  }
+  console.log("  Save your roster spreadsheet (.csv or .xlsx) into this folder");
+  console.log("  (create it if it doesn't exist yet):");
+  console.log(`    ${ROSTER_FOLDER}\n`);
+  console.log("  No path to type or paste — the skill finds it there automatically.");
+  console.log("  (Keeping the file somewhere else? Set 'rosterPath' in the settings");
+  console.log(`  file above instead: ${SETTINGS_DEST})`);
   console.log("\nThen, in Claude Code, run:  /network-brief");
   console.log("-------------------------------------------------------------\n");
 }

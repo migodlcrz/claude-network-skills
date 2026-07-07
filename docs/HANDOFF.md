@@ -9,45 +9,40 @@ week-planning session.
 
 ---
 
-## Part 1 — Install (one time, ~5 minutes)
+## Part 1 — Install (one time, ~3 minutes)
 
 **Before you start, you need:**
 
 - **Claude Code** open on your Mac/Windows (if you can type to it, you're ready).
-- **The roster spreadsheet** — a CSV or Excel file, one contact per row. Save it
-  somewhere you'll remember, like your Documents folder.
+- **The roster spreadsheet** — a CSV or Excel file, one contact per row.
+  1
+  **Steps:**
 
-**Steps:**
-
-1. Open the Terminal app (macOS: press ⌘ + Space, type "Terminal", and press Enter; Windows: press Windows + S, type "Windows Terminal" or "PowerShell", and press Enter).
+1. Open the Terminal app (macOS: press ⌘ + Space, type "Terminal", and press Enter;
+   Windows: press Windows + S, type "Windows Terminal" or "PowerShell", and press
+   Enter).
 2. Copy-paste this line and press Enter. It's the same kind of one-line install you
    used for Claude Code itself:
    ```
    npx github:migodlcrz/claude-network-skills install
    ```
-3. You'll see a few green ✓ checks. When it finishes, it tells you to set your
-   roster path.
-4. It created a small settings file. Open it (copy-paste this in Terminal, press
-   Enter):
+3. You'll see a few green ✓ checks.
+4. Save the roster spreadsheet into this exact folder — create it if it doesn't
+   exist yet:
    ```
-   open ~/.claude/network-focus.settings.json
+   ~/Documents/reports/
    ```
-5. Change the path in quotes to point at your spreadsheet, then save. Example:
-   ```json
-   { "rosterPath": "~/Documents/network-roster.csv" }
-   ```
-   > Tip: `~/` means your home folder. Don't write `~/Users/yourname/…` — that
-   > doubles it. Just `~/Documents/…`.
-6. *(Optional)* By default, each brief is also saved as a file in
-   `~/Documents/network-focus-briefs/`. To save it somewhere else instead, add a
-   second line:
-   ```json
-   { "rosterPath": "~/Documents/network-roster.csv",
-     "briefOutputDir": "~/Dropbox/CEO Briefs" }
-   ```
+   That's it — **no file path to type or paste anywhere.** The tool looks in that
+   folder automatically and picks up whatever spreadsheet is there.
 
-That's the whole setup. You won't touch it again unless the spreadsheet or your
-preferred save location moves.
+That's the whole setup. Next time the spreadsheet is updated, just replace the
+file in that same folder — nothing else to change.
+
+> **If you'd rather keep the spreadsheet somewhere else** (e.g. a synced Dropbox
+> folder), that's fine too — open `~/.claude/network-focus.settings.json` and add
+> `{ "rosterPath": "/full/path/to/your/file.csv" }`. Optional, not required. The
+> same file also lets you change where saved brief copies go (see Part 2) by
+> adding `"briefOutputDir": "/full/path/to/a/folder"`.
 
 ---
 
@@ -103,14 +98,15 @@ That's your cue to add a row for that contact before next Monday.
 The tool speaks plain English and will **never invent a brief** from bad data — it
 tells you what's wrong and how to fix it.
 
-| Message you see                                           | What it means                               | What to do                                                                            |
-| --------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------- |
-| "I couldn't read the roster file… no file is there"       | The spreadsheet moved, or the path is wrong | Re-check where the file lives; fix the path in the settings file (Part 1, step 4)     |
-| "Your goals mention **X**, but they aren't in the roster" | Someone named in the goals has no row       | Add a row for that person in the spreadsheet                                          |
-| "**X** has very old / very thin history"                  | Little recent info on them                  | The brief still runs — just double-check that person before reaching out              |
-| "matches multiple contacts"                               | Two people share a name                     | Note which one she means; the brief will ask rather than guess                        |
-| "Settings file… is not valid JSON"                        | The settings file got mistyped              | Make sure it looks exactly like: `{ "rosterPath": "…" }` — quotes and braces included |
-| "Could not read the Excel file…"                          | The Excel file is an odd format             | Open it, **Save As → CSV**, and point the path at the new `.csv`                      |
+| Message you see                                           | What it means                             | What to do                                                                            |
+| --------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| "I couldn't find a spreadsheet in `~/Documents/reports`"  | No file is in the watch folder            | Save your roster there as a `.csv` or `.xlsx` file and run the brief again            |
+| "Found more than one spreadsheet"                         | Two or more files are in the watch folder | Delete the old one(s) so only the current roster remains in that folder               |
+| "Your goals mention **X**, but they aren't in the roster" | Someone named in the goals has no row     | Add a row for that person in the spreadsheet                                          |
+| "**X** has very old / very thin history"                  | Little recent info on them                | The brief still runs — just double-check that person before reaching out              |
+| "matches multiple contacts"                               | Two people share a name                   | Note which one she means; the brief will ask rather than guess                        |
+| "Settings file… is not valid JSON"                        | The settings file got mistyped            | Make sure it looks exactly like: `{ "rosterPath": "…" }` — quotes and braces included |
+| "Could not read the Excel file…"                          | The Excel file is an odd format           | Open it, **Save As → CSV**, and save that into the watch folder instead               |
 
 **Still stuck?** Copy the exact message you saw and send it over — it says precisely
 what to fix.

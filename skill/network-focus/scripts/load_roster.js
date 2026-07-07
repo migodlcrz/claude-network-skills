@@ -17,9 +17,11 @@
  *   {"ok": true,  "roster": [...], "quality": {...}}   on success
  *   {"ok": false, "error": "...", "hint": "..."}       on failure
  *
- * Roster path resolution order:
- *   1. NETWORK_ROSTER_PATH environment variable
- *   2. rosterPath in the settings file
+ * Roster path resolution order (most operators never need past step 3):
+ *   1. NETWORK_ROSTER_PATH environment variable (power-user override)
+ *   2. rosterPath in the settings file, if explicitly set (manual override)
+ *   3. Auto-discover: the one CSV/XLSX file sitting in the watch folder (default
+ *      ~/Documents/reports, or rosterFolder in settings) — no path typing required.
  */
 
 const fs = require("fs");
@@ -91,31 +93,74 @@ function findSettingsPath() {
   return candidates.find((c) => fs.existsSync(c)) || null;
 }
 
+// Folder auto-discovery, so a non-technical operator never has to type or paste a
+// file path. If exactly one CSV/XLSX sits in the watch folder, use it. If there's
+// more than one, ask the operator to pick rather than guessing which is current.
+const DEFAULT_ROSTER_FOLDER = "~/Documents/reports";
+const ROSTER_EXTENSIONS = [".csv", ".xlsx", ".xlsm"];
+
+function discoverRosterFile(folder) {
+  if (!fs.existsSync(folder)) return { files: [] };
+  const files = fs
+    .readdirSync(folder, { withFileTypes: true })
+    .filter((e) => e.isFile() && !e.name.startsWith("."))
+    .filter((e) => ROSTER_EXTENSIONS.includes(path.extname(e.name).toLowerCase()))
+    .map((e) => path.join(folder, e.name));
+  return { files };
+}
+
+function readSettings(settingsPath) {
+  if (!settingsPath) return {};
+  try {
+    return JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  } catch (e) {
+    fail(
+      `Settings file ${settingsPath} is not valid JSON: ${e.message}`,
+      "Fix the JSON syntax in your settings file (a missing comma or quote).",
+    );
+  }
+}
+
 function resolveRosterPath() {
   const env = process.env.NETWORK_ROSTER_PATH;
   if (env) return { p: expandHome(env), source: "NETWORK_ROSTER_PATH env var" };
+
   const settingsPath = findSettingsPath();
-  if (settingsPath) {
-    let settings;
-    try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-    } catch (e) {
-      fail(
-        `Settings file ${settingsPath} is not valid JSON: ${e.message}`,
-        "Fix the JSON syntax in your settings file (a missing comma or quote).",
-      );
-    }
-    if (settings.rosterPath) {
-      return {
-        p: expandHome(settings.rosterPath),
-        source: `rosterPath in ${settingsPath}`,
-      };
-    }
+  const settings = readSettings(settingsPath);
+
+  // 1. Explicit manual override — respected if the operator set one.
+  if (settings.rosterPath) {
+    return {
+      p: expandHome(settings.rosterPath),
+      source: `rosterPath in ${settingsPath}`,
+    };
   }
+
+  // 2. Auto-discover from the watch folder — the default path for a non-technical
+  // operator: drop the file in the folder, never touch a path.
+  const folder = expandHome(settings.rosterFolder || DEFAULT_ROSTER_FOLDER);
+  const { files } = discoverRosterFile(folder);
+
+  if (files.length === 1) {
+    return { p: files[0], source: `auto-discovered in ${folder}` };
+  }
+
+  if (files.length > 1) {
+    fail(
+      `Found more than one spreadsheet in ${folder}, so I don't know which one is ` +
+        `the current roster: ${files.map((f) => path.basename(f)).join(", ")}.`,
+      "Either delete the old file(s) so only the current roster remains in that " +
+        "folder, or set 'rosterPath' in ~/.claude/network-focus.settings.json to " +
+        "the exact file to use.",
+    );
+  }
+
   fail(
-    "No roster path configured.",
-    "Set 'rosterPath' in ~/.claude/network-focus.settings.json to the full path of " +
-      "your roster CSV/XLSX file, or set the NETWORK_ROSTER_PATH env var.",
+    `No spreadsheet found in ${folder}.`,
+    `Save your roster as a .csv or .xlsx file into ${folder} (create the folder ` +
+      "if it doesn't exist) and run the brief again. If you keep the file " +
+      "somewhere else, set 'rosterPath' in ~/.claude/network-focus.settings.json " +
+      "to its full location instead.",
   );
 }
 
@@ -126,20 +171,15 @@ const DEFAULT_BRIEF_OUTPUT_DIR = "~/Documents/network-focus-briefs";
 function resolveBriefOutputDir() {
   const env = process.env.NETWORK_BRIEF_OUTPUT_DIR;
   if (env) return { dir: expandHome(env), source: "NETWORK_BRIEF_OUTPUT_DIR env var" };
+  // By the time this runs, resolveRosterPath() already validated the settings
+  // file's JSON (and failed loudly if it was broken), so this read is safe.
   const settingsPath = findSettingsPath();
-  if (settingsPath) {
-    try {
-      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-      if (settings.briefOutputDir) {
-        return {
-          dir: expandHome(settings.briefOutputDir),
-          source: `briefOutputDir in ${settingsPath}`,
-        };
-      }
-    } catch (e) {
-      // Settings file JSON errors are already surfaced by resolveRosterPath's own
-      // read; don't fail a second time here for an optional setting.
-    }
+  const settings = readSettings(settingsPath);
+  if (settings.briefOutputDir) {
+    return {
+      dir: expandHome(settings.briefOutputDir),
+      source: `briefOutputDir in ${settingsPath}`,
+    };
   }
   return { dir: expandHome(DEFAULT_BRIEF_OUTPUT_DIR), source: "default" };
 }

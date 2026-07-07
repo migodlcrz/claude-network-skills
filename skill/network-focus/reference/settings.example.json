@@ -1,4 +1,3 @@
 {
-  "rosterPath": "~/Documents/terragrid-network-roster.csv",
-  "briefOutputDir": "~/Documents/network-focus-briefs"
+  "_readme": "No changes needed by default — drop your roster CSV/XLSX into ~/Documents/reports and it's found automatically. Only add the settings below if you need them: 'rosterPath' to point at one exact file instead of auto-discovering (e.g. if you keep more than one spreadsheet in the watch folder), 'rosterFolder' to watch a different folder than ~/Documents/reports, or 'briefOutputDir' to save briefs somewhere other than ~/Documents/network-focus-briefs. Example: \"rosterPath\": \"~/Documents/terragrid-network-roster.csv\""
 }

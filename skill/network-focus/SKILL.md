@@ -48,9 +48,9 @@ well all at once.
 
 ### Step 1 — Load and validate the roster (deterministic, not you)
 
-Run the loader script. It reads the roster path from the operator's settings,
-parses the spreadsheet, validates it, and prints clean JSON plus a data-quality
-report. You reason only over its output — you never open the CSV/XLSX directly.
+Run the loader script. It finds and parses the spreadsheet, validates it, and
+prints clean JSON plus a data-quality report. You reason only over its output —
+you never open the CSV/XLSX directly.
 
 ```
 node scripts/load_roster.js
@@ -59,9 +59,16 @@ node scripts/load_roster.js
 The loader has zero dependencies (Node built-ins only) and reads both CSV and XLSX,
 so nothing extra needs to be installed.
 
-The script resolves the roster path in this order:
-1. `NETWORK_ROSTER_PATH` environment variable, if set.
-2. `rosterPath` in the operator's settings (see `reference/settings.example.json`).
+**The operator never has to type a file path.** The script resolves the roster in
+this order:
+1. `NETWORK_ROSTER_PATH` environment variable, if set (power-user override).
+2. `rosterPath` in the operator's settings, if explicitly set (manual override —
+   for when more than one spreadsheet lives in the watch folder, or the file is
+   kept somewhere unusual).
+3. **Auto-discovery (the default path for a non-technical operator):** the loader
+   looks in the watch folder — `~/Documents/reports` by default, or `rosterFolder`
+   in settings — and uses the file there if there's exactly one CSV/XLSX. The
+   operator's whole "setup" is dropping the spreadsheet into that folder.
 
 It prints a single JSON object to stdout with this shape:
 
@@ -287,12 +294,20 @@ low confidence.
 
 ### C. Roster unreachable or unparseable (`ok: false`)
 Do NOT produce a brief. Tell the operator in plain language what went wrong and how
-to fix it, using the `error` field from the loader. Example:
-> I couldn't read the roster file. The path in your settings points to
-> `<path>`, but no file is there. Please check the file location in
-> `settings.json` (the `rosterPath` value) and run the brief again.
+to fix it, using the `error`/`hint` fields from the loader. These already speak in
+plain language (no path jargon), so relay them directly rather than rephrasing.
+Example, when no file was found in the watch folder:
+> I couldn't find a spreadsheet in `~/Documents/reports`. Please save your roster
+> there as a `.csv` or `.xlsx` file and run the brief again.
 
 ### D. Ambiguous name match
 If a goal references a name that matches multiple roster rows (loader reports this
 in `quality.warnings`), do not guess. List the candidates in **Data notes** and ask
 the operator to disambiguate next run.
+
+### E. More than one spreadsheet in the watch folder
+If the loader's `error` says it found multiple files, do NOT guess which one is
+current. Relay its `hint` plainly: ask the operator to either delete the old
+file(s) so only the current roster remains in the folder, or set `rosterPath` in
+settings to the exact file to use. This is a variant of failure mode C
+(`ok: false`) — same rule: no brief until it's resolved.

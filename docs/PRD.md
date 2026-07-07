@@ -66,9 +66,16 @@ instead of a blank page.
    Last contact summary, Relationship strength (1-5), Tags, Notes`.
 2. **Goals** — `reference/goals.md`, the three quarterly goals plus a `goal_contacts`
    list of people/firms named in the goals (used for the missing-contact check).
-3. **Config** — `~/.claude/network-focus.settings.json` with `rosterPath` (required)
-   and `briefOutputDir` (optional, defaults to `~/Documents/network-focus-briefs`;
-   overridable per-run via `NETWORK_BRIEF_OUTPUT_DIR`).
+3. **Config** — `~/.claude/network-focus.settings.json`, fully optional. By default
+   the operator sets nothing: the loader auto-discovers the roster by looking for
+   the single CSV/XLSX in a watch folder (`~/Documents/reports`). Settings exist
+   only as manual overrides: `rosterPath` (one exact file, bypassing discovery —
+   needed if more than one spreadsheet lives in the watch folder), `rosterFolder`
+   (watch a different folder), `briefOutputDir` (save briefs somewhere other than
+   the `~/Documents/network-focus-briefs` default; also overridable per-run via
+   `NETWORK_BRIEF_OUTPUT_DIR`). This resolution order (env var → explicit setting →
+   auto-discovery) is what removes path-typing from the non-technical operator's
+   workflow entirely — see §5.1a.
 
 ### Loader output (deterministic → the LLM's only view of the data)
 ```jsonc
@@ -122,6 +129,19 @@ it can silently corrupt — a date, a strength score, a name. So we draw a hard 
 This makes the brief trustworthy *and* debuggable: when something looks wrong, it is
 either bad data (the loader logs it) or bad judgment (one prompt to inspect) — never
 an ambiguous mix.
+
+### 5.1a Zero-touch config — folder auto-discovery over path entry
+The operator is explicitly non-technical, so we treat any file-path typing as a
+usability bug, not an acceptable install step. `rosterPath` (an exact file) is
+useful for an engineer testing this, but it's also exactly where a real operator
+gets stuck — we hit this ourselves mid-build with a doubled `~/Users/...` typo that
+silently pointed nowhere. The fix: the loader defaults to watching a folder
+(`~/Documents/reports`) and auto-uses whatever single spreadsheet is dropped there.
+The operator's entire "install" step becomes *put the file in this folder* — no
+settings file to open, no path syntax to get wrong. `rosterPath`/`rosterFolder`
+remain as explicit overrides for edge cases (multiple spreadsheets kept on hand, an
+unusual save location), never as something a first-time operator has to touch.
+Same principle extends to `briefOutputDir` for saved brief copies (§5.x below).
 
 ### 5.2 Single agent vs. sub-agents — where we drew the line
 We evaluated this twice, at two different seams, and answered differently each time:
@@ -213,18 +233,19 @@ pattern-match text. **The loader uses no model at all** — it's deterministic c
 - **MCP** — not used in v1 (no live data sources to connect to); see §7 for where it
   belongs in production.
 
-## 6. Failure modes (≥2 required; we handle four)
+## 6. Failure modes (≥2 required; we handle five)
 
 | # | Failure mode | Detection | Behavior |
 |---|--------------|-----------|----------|
 | A | **Goal-named contact missing from roster** (e.g. a16z, Greylock, the Anthropic researcher) | Loader cross-checks `goal_contacts` in `goals.md` against roster names/companies | Brief continues with available contacts; **Data notes** flags the missing name and tells the operator to add a row |
 | B | **Stale / thin data** | Loader flags last-contact dates older than 90 days, or empty summary+notes | Contact may still be picked if it serves a goal, but flagged low-confidence in **Data notes** |
-| C | **Roster unreachable / unparseable** | Loader returns `ok:false` with a plain-language `error` + `hint` | No brief is produced; operator gets a plain-language fix (check `rosterPath`, export as CSV, etc.) |
+| C | **Roster unreachable / unparseable** | Loader returns `ok:false` with a plain-language `error` + `hint` (no file in the watch folder, unsupported type, bad Excel data, etc.) | No brief is produced; operator gets a plain-language fix — e.g. "save your roster into `~/Documents/reports`" |
 | D | **Ambiguous name match** | A goal name matches multiple roster rows | Loader lists candidates in `warnings`; brief asks operator to disambiguate rather than guessing |
+| E | **Ambiguous roster file** (a variant of C, called out separately since it's specific to auto-discovery) | More than one CSV/XLSX sits in the watch folder | Loader returns `ok:false`, refuses to guess which is current, and tells the operator to remove the old file(s) or set `rosterPath` explicitly |
 
-Note: A and B trigger on the provided roster (a16z missing; 7 stale contacts). C and
-D are handled in code but do not trigger on this dataset — they are exercised via
-malformed/duplicate test inputs, not staged in the demo.
+Note: A and B trigger on the provided roster (a16z missing; 7 stale contacts). C, D,
+and E are handled in code but do not trigger on this dataset — they are exercised
+via malformed/missing/duplicate test inputs, not staged in the demo.
 
 Design principle: **never fabricate a result.** Every failure surfaces to the
 operator in language a non-engineer can act on.
